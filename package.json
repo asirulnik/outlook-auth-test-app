@@ -1,7 +1,7 @@
 {
   "name": "outlook-auth-test-app",
   "version": "1.0.0",
-  "description": "A CLI application for authenticating with Microsoft Outlook and listing mail folders",
+  "description": "A CLI application for interacting with Microsoft Outlook mail",
   "main": "dist/index.js",
   "bin": {
     "outlook-mail-cli": "./dist/index.js"
@@ -13,14 +13,20 @@
     "test-auth": "echo 'Usage: npm run test-auth:user -- user@example.com'",
     "test-auth:user": "ts-node src/index.ts test-auth --user",
     "list-folders": "echo 'Usage: npm run list-folders:user -- user@example.com'",
-    "list-folders:user": "ts-node src/index.ts list-folders --user"
+    "list-folders:user": "ts-node src/index.ts list-folders --user",
+    "list-emails": "echo 'Usage: npm run list-emails:user -- folderID user@example.com'",
+    "list-emails:user": "ts-node src/index.ts list-emails --user",
+    "read-email": "echo 'Usage: npm run read-email:user -- emailID user@example.com'",
+    "read-email:user": "ts-node src/index.ts read-email --user"
   },
   "keywords": [
     "outlook",
     "microsoft-graph",
     "auth",
     "cli",
-    "typescript"
+    "typescript",
+    "mail",
+    "email"
   ],
   "author": "",
   "license": "ISC",

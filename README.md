@@ -1,12 +1,23 @@
 # Outlook Auth Test App
 
-A simple CLI application that authenticates to Microsoft Outlook via the Microsoft Graph API and lists mail folders.
+A CLI application that interacts with Microsoft Outlook via the Microsoft Graph API to manage emails and folders.
 
 ## Features
 
 - Authenticate to Microsoft Graph API using client credentials flow
-- List all top-level mail folders
-- List child folders of a specific mail folder
+- Mail Folder Operations:
+  - List all top-level mail folders
+  - List child folders of a specific mail folder
+  - Create new folders
+  - Rename folders
+  - Move folders to different parent folders
+  - Copy folders (if supported by the API)
+- Email Operations:
+  - List emails in a folder
+  - Read email content
+  - Move emails between folders
+  - Copy emails between folders
+  - Create new email drafts
 - Support for accessing mailboxes by specifying a user email (with proper permissions)
 
 ## Prerequisites
@@ -37,6 +48,7 @@ A simple CLI application that authenticates to Microsoft Outlook via the Microso
 2. Set the proper API permissions for application (client credentials) flow:
    - Microsoft Graph > Application permissions > Mail.Read (or Mail.ReadWrite for more functionality)
    - Microsoft Graph > Application permissions > Mail.ReadBasic.All (to read mail from all users)
+   - Microsoft Graph > Application permissions > Mail.Send (to send emails)
 
 3. **Important:** Grant admin consent for these permissions by clicking the "Grant admin consent for [your organization]" button
 
@@ -67,24 +79,99 @@ npm run build
 node dist/index.js test-auth --user user@example.com
 ```
 
-### List Top-Level Mail Folders
+### Mail Folder Operations
+
+#### List Top-Level Mail Folders
 
 ```
 npx ts-node src/index.ts list-folders --user user@example.com
 ```
-or
-```
-node dist/index.js list-folders --user user@example.com
-```
 
-### List Child Folders
+#### List Child Folders
 
 ```
 npx ts-node src/index.ts list-child-folders <folder-id> --user user@example.com
 ```
-or
+
+#### Create a New Folder
+
 ```
-node dist/index.js list-child-folders <folder-id> --user user@example.com
+npx ts-node src/index.ts create-folder "Folder Name" --user user@example.com
+```
+
+With a parent folder:
+```
+npx ts-node src/index.ts create-folder "Folder Name" --user user@example.com --parent <parent-folder-id>
+```
+
+#### Rename a Folder
+
+```
+npx ts-node src/index.ts rename-folder <folder-id> "New Folder Name" --user user@example.com
+```
+
+#### Move a Folder
+
+```
+npx ts-node src/index.ts move-folder <folder-id> <destination-parent-folder-id> --user user@example.com
+```
+
+#### Copy a Folder (if supported by the API)
+
+```
+npx ts-node src/index.ts copy-folder <folder-id> <destination-parent-folder-id> --user user@example.com
+```
+
+### Email Operations
+
+#### List Emails in a Folder
+
+```
+npx ts-node src/index.ts list-emails <folder-id> --user user@example.com
+```
+
+With a custom limit:
+```
+npx ts-node src/index.ts list-emails <folder-id> --user user@example.com --limit 50
+```
+
+#### Read an Email
+
+```
+npx ts-node src/index.ts read-email <email-id> --user user@example.com
+```
+
+#### Move an Email to Another Folder
+
+```
+npx ts-node src/index.ts move-email <email-id> <destination-folder-id> --user user@example.com
+```
+
+#### Copy an Email to Another Folder
+
+```
+npx ts-node src/index.ts copy-email <email-id> <destination-folder-id> --user user@example.com
+```
+
+#### Create a Draft Email
+
+```
+npx ts-node src/index.ts create-draft --user user@example.com --subject "Email Subject" --to "recipient@example.com" --message "Email body text"
+```
+
+With CC and BCC:
+```
+npx ts-node src/index.ts create-draft --user user@example.com --subject "Email Subject" --to "recipient@example.com" --cc "cc@example.com" --bcc "bcc@example.com" --message "Email body text"
+```
+
+Using HTML format:
+```
+npx ts-node src/index.ts create-draft --user user@example.com --subject "Email Subject" --to "recipient@example.com" --html --message "<h1>Hello</h1><p>This is HTML email</p>"
+```
+
+Using a file for the body:
+```
+npx ts-node src/index.ts create-draft --user user@example.com --subject "Email Subject" --to "recipient@example.com" --file path/to/email-body.txt
 ```
 
 ## Common Issues
@@ -94,6 +181,7 @@ node dist/index.js list-child-folders <folder-id> --user user@example.com
 - **401 Unauthorized**: Check that your client secret hasn't expired and that your application has the proper permissions
 - **"...is only valid with delegated authentication flow"**: This app uses application permissions (client credentials flow) and requires a specific user email for all operations. Make sure to use the `--user` parameter
 - **"User does not exist or one of its dependencies"**: Check that the email address you're using exists and is accessible to your application
+- **"Folder copying is not supported by the Microsoft Graph API"**: The Microsoft Graph API may not support copying folders. In that case, you'll need to implement a custom solution if you need this functionality.
 
 ## License
 

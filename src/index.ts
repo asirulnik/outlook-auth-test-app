@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { MailService, MailFolder } from './mailService';
+import { MailService, MailFolder, EmailMessage, EmailDetails, NewEmailDraft, NewMailFolder } from './mailService';
 
 // Create a new instance of the Command class
+import * as fs from 'fs';
+
 const program = new Command();
 
 // Set up the program metadata
 program
   .name('outlook-mail-cli')
-  .description('CLI to authenticate with Microsoft Outlook and list mail folders')
+  .description('CLI to interact with Microsoft Outlook mail')
   .version('1.0.0');
 
 // Helper function to print folders in a tree structure
@@ -43,6 +45,75 @@ function formatFolderInfo(folder: MailFolder): string {
   
   info += ')';
   return info;
+}
+
+// Helper function to print email messages
+function printEmails(emails: EmailMessage[]) {
+  console.log(`\nFound ${emails.length} emails:\n`);
+  
+  for (let i = 0; i < emails.length; i++) {
+    const email = emails[i];
+    const readStatus = email.isRead ? '' : '[UNREAD] ';
+    const fromName = email.from?.emailAddress.name || email.from?.emailAddress.address || 'Unknown Sender';
+    const receivedDate = email.receivedDateTime ? new Date(email.receivedDateTime).toLocaleString() : 'Unknown Date';
+    const hasAttachment = email.hasAttachments ? ' [Has Attachments]' : '';
+    
+    console.log(`${i + 1}. ${readStatus}${email.subject} - From: ${fromName} - ${receivedDate}${hasAttachment}`);
+    console.log(`   ID: ${email.id}`);
+    if (email.bodyPreview) {
+      console.log(`   Preview: ${email.bodyPreview.substring(0, 100)}${email.bodyPreview.length > 100 ? '...' : ''}`);
+    }
+    console.log('');
+  }
+}
+
+// Helper function to print email details
+function printEmailDetails(email: EmailDetails) {
+  console.log('\n==================================================');
+  console.log(`Subject: ${email.subject}`);
+  console.log(`From: ${email.from?.emailAddress.name || ''} <${email.from?.emailAddress.address || 'Unknown'}>`)
+  
+  if (email.toRecipients && email.toRecipients.length > 0) {
+    console.log('To: ' + email.toRecipients.map(r => 
+      `${r.emailAddress.name || ''} <${r.emailAddress.address}>`).join(', '));
+  }
+  
+  if (email.ccRecipients && email.ccRecipients.length > 0) {
+    console.log('CC: ' + email.ccRecipients.map(r => 
+      `${r.emailAddress.name || ''} <${r.emailAddress.address}>`).join(', '));
+  }
+  
+  if (email.receivedDateTime) {
+    console.log(`Date: ${new Date(email.receivedDateTime).toLocaleString()}`);
+  }
+  
+  if (email.attachments && email.attachments.length > 0) {
+    console.log('\nAttachments:');
+    email.attachments.forEach((attachment, i) => {
+      const sizeInKB = Math.round(attachment.size / 1024);
+      console.log(`${i + 1}. ${attachment.name} (${attachment.contentType}, ${sizeInKB} KB) - ID: ${attachment.id}`);
+    });
+  }
+  
+  console.log('\n--------------------------------------------------');
+  if (email.body) {
+    if (email.body.contentType === 'html') {
+      console.log('Note: This is an HTML email. Plain text approximation shown:');
+      // Very simple HTML to text conversion
+      const textContent = email.body.content
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/&nbsp;/g, ' ')  // Replace common HTML entities
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+      console.log(textContent);
+    } else {
+      console.log(email.body.content);
+    }
+  } else {
+    console.log(email.bodyPreview || 'No content');
+  }
+  console.log('==================================================\n');
 }
 
 // Command to test authentication and display a success message
@@ -96,6 +167,230 @@ program
       console.log('\n');
     } catch (error) {
       console.error('Error listing child folders:', error);
+      process.exit(1);
+    }
+  });
+
+// Command to list emails in a folder
+program
+  .command('list-emails <folderId>')
+  .description('List emails in a specific mail folder')
+  .requiredOption('-u, --user <email>', 'Email address of the user')
+  .option('-l, --limit <number>', 'Number of emails to retrieve', '25')
+  .action(async (folderId, options) => {
+    try {
+      const mailService = new MailService();
+      const emails = await mailService.listEmails(folderId, options.user, parseInt(options.limit));
+      
+      console.log(`\nEmails in Folder ID: ${folderId} (User: ${options.user})`);
+      printEmails(emails);
+    } catch (error) {
+      console.error('Error listing emails:', error);
+      process.exit(1);
+    }
+  });
+
+// Command to read a specific email
+program
+  .command('read-email <emailId>')
+  .description('Read a specific email with all details')
+  .requiredOption('-u, --user <email>', 'Email address of the user')
+  .action(async (emailId, options) => {
+    try {
+      const mailService = new MailService();
+      const email = await mailService.getEmail(emailId, options.user);
+      
+      printEmailDetails(email);
+    } catch (error) {
+      console.error('Error reading email:', error);
+      process.exit(1);
+    }
+  });
+
+// Command to move an email to another folder
+program
+  .command('move-email <emailId> <destinationFolderId>')
+  .description('Move an email to another folder')
+  .requiredOption('-u, --user <email>', 'Email address of the user')
+  .action(async (emailId, destinationFolderId, options) => {
+    try {
+      const mailService = new MailService();
+      await mailService.moveEmail(emailId, destinationFolderId, options.user);
+      
+      console.log(`Email ${emailId} successfully moved to folder ${destinationFolderId}`);
+    } catch (error) {
+      console.error('Error moving email:', error);
+      process.exit(1);
+    }
+  });
+
+// Command to copy an email to another folder
+program
+  .command('copy-email <emailId> <destinationFolderId>')
+  .description('Copy an email to another folder')
+  .requiredOption('-u, --user <email>', 'Email address of the user')
+  .action(async (emailId, destinationFolderId, options) => {
+    try {
+      const mailService = new MailService();
+      await mailService.copyEmail(emailId, destinationFolderId, options.user);
+      
+      console.log(`Email ${emailId} successfully copied to folder ${destinationFolderId}`);
+    } catch (error) {
+      console.error('Error copying email:', error);
+      process.exit(1);
+    }
+  });
+
+// Command to create a new draft email
+program
+  .command('create-draft')
+  .description('Create a new draft email')
+  .requiredOption('-u, --user <email>', 'Email address of the user')
+  .requiredOption('-s, --subject <text>', 'Email subject')
+  .requiredOption('-t, --to <emails>', 'Recipient email addresses (comma-separated)')
+  .option('-c, --cc <emails>', 'CC recipient email addresses (comma-separated)')
+  .option('-b, --bcc <emails>', 'BCC recipient email addresses (comma-separated)')
+  .option('--html', 'Use HTML format for the body (default is plain text)')
+  .option('-f, --file <path>', 'Path to a file containing the email body')
+  .option('-m, --message <text>', 'Email body text (use this or --file)')
+  .action(async (options) => {
+    try {
+      let bodyContent = '';
+      
+      // Check if body is provided via file or directly
+      if (options.file) {
+        try {
+          bodyContent = fs.readFileSync(options.file, 'utf8');
+        } catch (fsError) {
+          console.error(`Error reading file: ${options.file}`, fsError);
+          process.exit(1);
+        }
+      } else if (options.message) {
+        bodyContent = options.message;
+      } else {
+        console.error('Error: Email body must be provided using --message or --file');
+        process.exit(1);
+      }
+      
+      // Parse recipients
+      const toList = options.to.split(',').map((email: string) => ({
+        emailAddress: { address: email.trim() }
+      }));
+      
+      // Create draft object
+      const draft: NewEmailDraft = {
+        subject: options.subject,
+        body: {
+          contentType: options.html ? 'HTML' : 'Text',
+          content: bodyContent
+        },
+        toRecipients: toList
+      };
+      
+      // Add CC if provided
+      if (options.cc) {
+        draft.ccRecipients = options.cc.split(',').map((email: string) => ({
+          emailAddress: { address: email.trim() }
+        }));
+      }
+      
+      // Add BCC if provided
+      if (options.bcc) {
+        draft.bccRecipients = options.bcc.split(',').map((email: string) => ({
+          emailAddress: { address: email.trim() }
+        }));
+      }
+      
+      const mailService = new MailService();
+      const result = await mailService.createDraft(draft, options.user);
+      
+      console.log(`Draft email created successfully with ID: ${result.id}`);
+    } catch (error) {
+      console.error('Error creating draft email:', error);
+      process.exit(1);
+    }
+  });
+
+// Command to create a new mail folder
+program
+  .command('create-folder <name>')
+  .description('Create a new mail folder')
+  .requiredOption('-u, --user <email>', 'Email address of the user')
+  .option('-p, --parent <folderId>', 'Optional parent folder ID')
+  .option('--hidden', 'Create the folder as hidden')
+  .action(async (name, options) => {
+    try {
+      const newFolder: NewMailFolder = {
+        displayName: name,
+        isHidden: options.hidden || false
+      };
+      
+      const mailService = new MailService();
+      const result = await mailService.createFolder(newFolder, options.user, options.parent);
+      
+      console.log(`Folder "${name}" created successfully with ID: ${result.id}`);
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      process.exit(1);
+    }
+  });
+
+// Command to rename a mail folder
+program
+  .command('rename-folder <folderId> <newName>')
+  .description('Rename a mail folder')
+  .requiredOption('-u, --user <email>', 'Email address of the user')
+  .action(async (folderId, newName, options) => {
+    try {
+      const updatedFolder: Partial<NewMailFolder> = {
+        displayName: newName
+      };
+      
+      const mailService = new MailService();
+      await mailService.updateFolder(folderId, updatedFolder, options.user);
+      
+      console.log(`Folder ${folderId} renamed to "${newName}" successfully`);
+    } catch (error) {
+      console.error('Error renaming folder:', error);
+      process.exit(1);
+    }
+  });
+
+// Command to move a folder to another parent folder
+program
+  .command('move-folder <folderId> <destinationParentFolderId>')
+  .description('Move a folder to another parent folder')
+  .requiredOption('-u, --user <email>', 'Email address of the user')
+  .action(async (folderId, destinationParentFolderId, options) => {
+    try {
+      const mailService = new MailService();
+      await mailService.moveFolder(folderId, destinationParentFolderId, options.user);
+      
+      console.log(`Folder ${folderId} successfully moved to parent folder ${destinationParentFolderId}`);
+    } catch (error) {
+      console.error('Error moving folder:', error);
+      process.exit(1);
+    }
+  });
+
+// Command to copy a folder to another parent folder
+program
+  .command('copy-folder <folderId> <destinationParentFolderId>')
+  .description('Copy a folder to another parent folder (may not be supported by the API)')
+  .requiredOption('-u, --user <email>', 'Email address of the user')
+  .action(async (folderId, destinationParentFolderId, options) => {
+    try {
+      const mailService = new MailService();
+      await mailService.copyFolder(folderId, destinationParentFolderId, options.user);
+      
+      console.log(`Folder ${folderId} successfully copied to parent folder ${destinationParentFolderId}`);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      if (err.message?.includes('not supported')) {
+        console.error('Error: Folder copying is not supported by the Microsoft Graph API');
+      } else {
+        console.error('Error copying folder:', error);
+      }
       process.exit(1);
     }
   });
