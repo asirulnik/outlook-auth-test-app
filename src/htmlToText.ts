@@ -254,42 +254,36 @@ function processTables(text: string): string {
       maxCols = Math.max(maxCols, ...directRows.map(row => row.length));
     }
     
-    // Calculate column widths based on content
-    const colWidths: number[] = Array(maxCols).fill(0);
-    
-    // Determine the maximum width needed for each column
-    rows.forEach(row => {
-      row.forEach((cell, colIndex) => {
-        if (colIndex < maxCols) {
-          colWidths[colIndex] = Math.max(colWidths[colIndex], cell.length);
-        }
-      });
-    });
+    // For email signatures, ensure we have at least 3 columns
+    maxCols = Math.max(maxCols, 3);
     
     // Format the table as text
     let result = '\n';
     
     // Add table rows
     rows.forEach((row, rowIndex) => {
-      // Add separator after header if this is the first row
-      if (rowIndex === 1 && headerMatch) {
-        result += '|';
-        for (let i = 0; i < maxCols; i++) {
-          const borderWidth = colWidths[i];
-          result += ' ' + '-'.repeat(borderWidth) + ' |';
+      // Start the row with pipe
+      let rowText = '| ';
+      
+      // Add cells with proper content padding
+      for (let i = 0; i < maxCols; i++) {
+        if (i < row.length) {
+          // Add the cell content
+          rowText += row[i];
         }
-        result += '\n';
+        
+        // Add the column separator
+        rowText += ' | ';
       }
       
-      // Add the row content
-      result += '|';
-      for (let i = 0; i < maxCols; i++) {
-        const cellContent = i < row.length ? row[i] : '';
-        result += ' ' + cellContent.padEnd(colWidths[i]) + ' |';
-      }
-      result += '\n';
+      // Trim the last space if there is one and add newline
+      result += rowText.trimRight() + '\n';
     });
     
+    // Add a blank line after the table to separate it from following content
+    result += '\n';
+    
+    // Return the table
     return result;
   });
 }
