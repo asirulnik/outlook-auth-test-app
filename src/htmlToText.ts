@@ -1,4 +1,43 @@
 /**
+ * Identifies and marks quoted prior emails in the text
+ * by adding a separator line before email header patterns
+ */
+function markQuotedEmails(text: string): string {
+  // Common email header patterns
+  const patterns = [
+    // Standard from/sent/to/subject pattern
+    /(?:^|\n)(From:.*?)\n((?:Sent|Date):.*?)\n(To:.*?)(?:\n(Cc:.*?))?\n(Subject:.*?)\n/g,
+    
+    // Pattern with angle brackets (email addresses)
+    /(?:^|\n)(From:.*?@.*?)\n((?:Sent|Date):.*?)\n(To:.*?@.*?)(?:\n(Cc:.*?@.*?))?\n(Subject:.*?)\n/g,
+    
+    // Outlook style quoted text
+    /(?:^|\n)_{5,}\n.*?Original Message.*?\n.*?From:.*?\n/g,
+    
+    // Gmail style quoted text
+    /(?:^|\n)On.*?wrote:\n/g
+  ];
+  
+  // Add separator for each pattern found
+  patterns.forEach(pattern => {
+    // Look for the pattern and add separator
+    text = text.replace(pattern, (match) => {
+      // Only add separator if one doesn't already exist
+      if (!match.startsWith('\n---\n')) {
+        return '\n---\n' + match;
+      }
+      return match;
+    });
+  });
+  
+  // Clean up any duplicate separators
+  text = text.replace(/\n---\n---\n/g, '\n---\n');
+  text = text.replace(/^---\n/, ''); // Remove separator at the very beginning
+  
+  return text;
+}
+
+/**
  * Enhanced HTML to plain text converter
  * This module provides better conversion of HTML content to readable plain text,
  * preserving whitespace, list formatting, and other structural elements.
@@ -58,6 +97,10 @@ export function htmlToText(html: string, options: HtmlToTextOptions = {}): strin
     .replace(/&#x([0-9a-f]+);/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
   
   // Pre-processing for certain elements
+  
+  // Handle blockquote and div with border-left (common for quoted emails)
+  text = text.replace(/<blockquote[^>]*>|<div[^>]*style=["'][^"']*border-left[^>]*>/gi, '\n---\n');
+  text = text.replace(/<\/blockquote>|<\/div>/gi, '');
   
   // Convert divs to paragraphs for easier processing
   text = text.replace(/<div\s[^>]*>/gi, '<div>');
@@ -185,6 +228,9 @@ export function htmlToText(html: string, options: HtmlToTextOptions = {}): strin
   if (settings.wordwrap && typeof settings.wordwrap === 'number') {
     text = applyWordWrap(text, settings.wordwrap);
   }
+  
+  // Identify and mark quoted prior emails
+  text = markQuotedEmails(text);
   
   // Final pass to remove trailing whitespace from every line
   text = text.split('\n')
