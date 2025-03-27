@@ -183,6 +183,49 @@ npx ts-node src/index.ts create-draft --user user@example.com --subject "Email S
 - **"User does not exist or one of its dependencies"**: Check that the email address you're using exists and is accessible to your application
 - **"Folder copying is not supported by the Microsoft Graph API"**: The Microsoft Graph API may not support copying folders. In that case, you'll need to implement a custom solution if you need this functionality.
 
+## HTML to Plain Text Converter
+
+This application includes an enhanced HTML to plain text converter that preserves formatting elements when displaying HTML emails. The converter supports:
+
+- Maintaining paragraph structure with proper spacing
+- Converting HTML lists (both ordered and unordered) to plain text lists
+- Preserving table structure
+- Converting links with displayed URLs
+- Handling blockquotes, pre-formatted text, and horizontal rules
+- Formatting text styles (bold, italic, underline, etc.)
+- Configurable word wrapping
+- Maintaining heading hierarchy
+
+### Testing the HTML to Plain Text Converter
+
+You can test the HTML to text converter directly with HTML files:
+
+```
+npm run test-html2text test-email-1.html
+```
+
+or
+
+```
+npx ts-node src/test-converter.ts path/to/html/file.html
+```
+
+This will convert the HTML file to plain text and save the output as a .txt file with the same name.
+
+### Customizing the Converter
+
+The converter accepts the following options:
+
+- `wordwrap`: Character limit before wrapping (number or false to disable)
+- `preserveNewlines`: Whether to keep existing newlines (boolean)
+- `tables`: Whether to format tables (boolean)
+- `uppercaseHeadings`: Whether to convert headings to uppercase (boolean)
+- `preserveHrefLinks`: Whether to include URLs in brackets after link text (boolean)
+- `bulletIndent`: Indentation for bullets (number)
+- `listIndent`: Indentation for lists (number)
+- `headingStyle`: How to format headings ('underline', 'linebreak', or 'hashify')
+- `maxLineLength`: Maximum line length (number)
+
 ## License
 
 ISC

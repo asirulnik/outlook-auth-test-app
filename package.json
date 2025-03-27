@@ -17,7 +17,8 @@
     "list-emails": "echo 'Usage: npm run list-emails:user -- folderID user@example.com'",
     "list-emails:user": "ts-node src/index.ts list-emails --user",
     "read-email": "echo 'Usage: npm run read-email:user -- emailID user@example.com'",
-    "read-email:user": "ts-node src/index.ts read-email --user"
+    "read-email:user": "ts-node src/index.ts read-email --user",
+    "test-html2text": "ts-node src/test-converter.ts"
   },
   "keywords": [
     "outlook",

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { MailService, MailFolder, EmailMessage, EmailDetails, NewEmailDraft, NewMailFolder } from './mailService';
+import { htmlToText } from './htmlToText';
 
 // Create a new instance of the Command class
 import * as fs from 'fs';
@@ -98,14 +99,15 @@ function printEmailDetails(email: EmailDetails) {
   console.log('\n--------------------------------------------------');
   if (email.body) {
     if (email.body.contentType === 'html') {
-      console.log('Note: This is an HTML email. Plain text approximation shown:');
-      // Very simple HTML to text conversion
-      const textContent = email.body.content
-        .replace(/<[^>]*>/g, '') // Remove HTML tags
-        .replace(/&nbsp;/g, ' ')  // Replace common HTML entities
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&');
+      console.log('Note: This is an HTML email. Plain text conversion shown:');
+      // Use our enhanced HTML to text converter with formatting preservation
+      const textContent = htmlToText(email.body.content, {
+        wordwrap: 100, // Adjust based on terminal width
+        preserveNewlines: true,
+        tables: true,
+        preserveHrefLinks: true,
+        headingStyle: 'linebreak'
+      });
       console.log(textContent);
     } else {
       console.log(email.body.content);
