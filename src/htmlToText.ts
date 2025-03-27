@@ -66,43 +66,43 @@ export function htmlToText(html: string, options: HtmlToTextOptions = {}): strin
   text = text
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<p\s[^>]*>/gi, '<p>')
-    .replace(/<\/p>/gi, '\n\n');
+    .replace(/<\/p>/gi, '\n');
   
   // Handle headings (h1-h6)
   if (settings.headingStyle === 'hashify') {
     // GitHub-style headings with #
     text = text
-      .replace(/<h1\s[^>]*>/gi, '\n\n# ')
-      .replace(/<h2\s[^>]*>/gi, '\n\n## ')
-      .replace(/<h3\s[^>]*>/gi, '\n\n### ')
-      .replace(/<h4\s[^>]*>/gi, '\n\n#### ')
-      .replace(/<h5\s[^>]*>/gi, '\n\n##### ')
-      .replace(/<h6\s[^>]*>/gi, '\n\n###### ');
+      .replace(/<h1\s[^>]*>/gi, '\n# ')
+      .replace(/<h2\s[^>]*>/gi, '\n## ')
+      .replace(/<h3\s[^>]*>/gi, '\n### ')
+      .replace(/<h4\s[^>]*>/gi, '\n#### ')
+      .replace(/<h5\s[^>]*>/gi, '\n##### ')
+      .replace(/<h6\s[^>]*>/gi, '\n###### ');
   } else if (settings.headingStyle === 'underline') {
     // Underline style for headings
     text = text
-      .replace(/<h1\s[^>]*>/gi, '\n\n')
-      .replace(/<h2\s[^>]*>/gi, '\n\n')
-      .replace(/<h3\s[^>]*>/gi, '\n\n')
-      .replace(/<h4\s[^>]*>/gi, '\n\n')
-      .replace(/<h5\s[^>]*>/gi, '\n\n')
-      .replace(/<h6\s[^>]*>/gi, '\n\n');
+      .replace(/<h1\s[^>]*>/gi, '\n')
+      .replace(/<h2\s[^>]*>/gi, '\n')
+      .replace(/<h3\s[^>]*>/gi, '\n')
+      .replace(/<h4\s[^>]*>/gi, '\n')
+      .replace(/<h5\s[^>]*>/gi, '\n')
+      .replace(/<h6\s[^>]*>/gi, '\n');
       
     // We'll handle the underlines after removing tags
   } else {
     // Default: just use line breaks
     text = text
-      .replace(/<h1\s[^>]*>/gi, '\n\n')
-      .replace(/<h2\s[^>]*>/gi, '\n\n')
-      .replace(/<h3\s[^>]*>/gi, '\n\n')
-      .replace(/<h4\s[^>]*>/gi, '\n\n')
-      .replace(/<h5\s[^>]*>/gi, '\n\n')
-      .replace(/<h6\s[^>]*>/gi, '\n\n');
+      .replace(/<h1\s[^>]*>/gi, '\n')
+      .replace(/<h2\s[^>]*>/gi, '\n')
+      .replace(/<h3\s[^>]*>/gi, '\n')
+      .replace(/<h4\s[^>]*>/gi, '\n')
+      .replace(/<h5\s[^>]*>/gi, '\n')
+      .replace(/<h6\s[^>]*>/gi, '\n');
   }
   
   // Close heading tags with a newline
   text = text
-    .replace(/<\/h[1-6]>/gi, '\n\n');
+    .replace(/<\/h[1-6]>/gi, '\n');
   
   // Handle lists
   // Convert list items to indented bullet points
@@ -128,32 +128,32 @@ export function htmlToText(html: string, options: HtmlToTextOptions = {}): strin
   }
   
   // Handle blockquotes
-  text = text.replace(/<blockquote[^>]*>/gi, '\n\n> ');
-  text = text.replace(/<\/blockquote>/gi, '\n\n');
+  text = text.replace(/<blockquote[^>]*>/gi, '\n> ');
+  text = text.replace(/<\/blockquote>/gi, '\n');
   
   // Replace multiple blockquote patterns with deeper nesting
   text = text.replace(/>\s+>/g, '>>');
   
   // Handle pre-formatted text
   text = text
-    .replace(/<pre[^>]*>/gi, '\n\n')
-    .replace(/<\/pre>/gi, '\n\n');
+    .replace(/<pre[^>]*>/gi, '\n')
+    .replace(/<\/pre>/gi, '\n');
   
   // Handle horizontal rules
-  text = text.replace(/<hr[^>]*>/gi, '\n\n----------------------------\n\n');
+  text = text.replace(/<hr[^>]*>/gi, '\n----------------------------\n');
   
-  // Handle character styles
+  // Handle character styles - just remove them without adding formatting indicators
   text = text
-    .replace(/<b>|<strong[^>]*>/gi, '**')
-    .replace(/<\/b>|<\/strong>/gi, '**')
-    .replace(/<i>|<em[^>]*>/gi, '_')
-    .replace(/<\/i>|<\/em>/gi, '_')
-    .replace(/<u[^>]*>/gi, '_')
-    .replace(/<\/u>/gi, '_')
-    .replace(/<s>|<strike>|<del[^>]*>/gi, '~~')
-    .replace(/<\/s>|<\/strike>|<\/del>/gi, '~~')
-    .replace(/<mark[^>]*>/gi, '==')
-    .replace(/<\/mark>/gi, '==');
+    .replace(/<b>|<strong[^>]*>/gi, '')
+    .replace(/<\/b>|<\/strong>/gi, '')
+    .replace(/<i>|<em[^>]*>/gi, '')
+    .replace(/<\/i>|<\/em>/gi, '')
+    .replace(/<u[^>]*>/gi, '')
+    .replace(/<\/u>/gi, '')
+    .replace(/<s>|<strike>|<del[^>]*>/gi, '')
+    .replace(/<\/s>|<\/strike>|<\/del>/gi, '')
+    .replace(/<mark[^>]*>/gi, '')
+    .replace(/<\/mark>/gi, '');
   
   // Strip remaining HTML tags
   text = text.replace(/<[^>]*>/g, '');
@@ -171,11 +171,12 @@ export function htmlToText(html: string, options: HtmlToTextOptions = {}): strin
   
   // Cleanup excessive whitespace
   text = text
-    .replace(/\n\s+\n/g, '\n\n')            // Remove extra spaces between paragraphs
-    .replace(/\n{3,}/g, '\n\n')             // Max 2 consecutive newlines
+    .replace(/\n\s+\n/g, '\n')              // Remove extra spaces between paragraphs
+    .replace(/\n{2,}/g, '\n')               // No consecutive newlines
     .replace(/\t/g, '    ')                 // Convert tabs to spaces
     .replace(/[ \t]+\n/g, '\n')             // Remove trailing whitespace
-    .replace(/^\s+/, '');                   // Remove leading whitespace
+    .replace(/^\s+/, '')                    // Remove leading whitespace
+    .replace(/\s+$/g, '');                  // Remove trailing whitespace from the end
   
   // Word wrapping if enabled
   if (settings.wordwrap && typeof settings.wordwrap === 'number') {
