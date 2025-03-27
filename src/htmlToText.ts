@@ -6,32 +6,88 @@ function markQuotedEmails(text: string): string {
   // Common email header patterns
   const patterns = [
     // Standard from/sent/to/subject pattern
-    /(?:^|\n)(From:.*?)\n((?:Sent|Date):.*?)\n(To:.*?)(?:\n(Cc:.*?))?\n(Subject:.*?)\n/g,
+    /(?:^|\n)(From:.*?)\n((?:Sent|Date):.*?)\n(To:.*?)(?:\n(Cc:.*?))?\n(Subject:.*?)\n/gi,
     
     // Pattern with angle brackets (email addresses)
-    /(?:^|\n)(From:.*?@.*?)\n((?:Sent|Date):.*?)\n(To:.*?@.*?)(?:\n(Cc:.*?@.*?))?\n(Subject:.*?)\n/g,
+    /(?:^|\n)(From:.*?@.*?)\n((?:Sent|Date):.*?)\n(To:.*?@.*?)(?:\n(Cc:.*?@.*?))?\n(Subject:.*?)\n/gi,
     
     // Outlook style quoted text
-    /(?:^|\n)_{5,}\n.*?Original Message.*?\n.*?From:.*?\n/g,
+    /(?:^|\n)_{5,}\n.*?Original Message.*?\n.*?From:.*?\n/gi,
     
     // Gmail style quoted text
-    /(?:^|\n)On.*?wrote:\n/g
+    /(?:^|\n)On.*?wrote:\n/gi,
+    
+    // Simple From: pattern (even if it's not followed by complete headers)
+    /(?:^|\n)([^-\n]{0,4})(From:.*?)\n(?=(?:(?!---).)*?(?:To:|Sent:|Date:|Subject:))/gi,
+    
+    // From pattern followed by indicators
+    /(?:^|\n)([^-\n]{0,4})(From:[^\n]+)\n(?!.*?---[^\n]*)/gi
   ];
   
-  // Add separator for each pattern found
+  // First pass - add separator for each pattern found
   patterns.forEach(pattern => {
     // Look for the pattern and add separator
-    text = text.replace(pattern, (match) => {
-      // Only add separator if one doesn't already exist
-      if (!match.startsWith('\n---\n')) {
-        return '\n---\n' + match;
+    text = text.replace(pattern, (match, p1, p2) => {
+      // If the match starts with a separator or already has one before it, don't add another
+      if (match.startsWith('\n---\n') || match.startsWith('---\n') ||
+          (p1 && p1.trim() === '---')) {
+        return match;
       }
-      return match;
+      
+      // If this is a simple From: pattern match, check if we need to add separator
+      if (p1 !== undefined && p2 !== undefined) {
+        if (p1.trim() === '') {
+          return '\n---\n' + p2 + '\n';
+        }
+        return p1 + '---\n' + p2 + '\n';
+      }
+      
+      return '\n---\n' + match.trimStart();
     });
   });
   
-  // Clean up any duplicate separators
-  text = text.replace(/\n---\n---\n/g, '\n---\n');
+  // Second pass - look for any remaining from/sent/to patterns that might have been missed
+  const secondPattern = /(?:^|\n)(?!---\n)(From: .*?)\n((?:Sent|Date): .*?)\n(To: .*?)\n/gi;
+  text = text.replace(secondPattern, '\n---\n$1\n$2\n$3\n');
+  
+  // Third pass - any remaining From: lines that aren't preceded by a separator
+  // but look like email headers (check for surrounding context)
+  const fromLinePattern = /\n(?!---\n)(?!.*?@.*?\n.*?@.*?)(From: [^\n]+)\n/gi;
+  text = text.replace(fromLinePattern, (match, fromLine) => {
+    // Check if this is likely to be part of an email header
+    // by looking at surrounding context
+    const isLikelyHeader = (
+      match.includes('Sent:') ||
+      match.includes('Date:') ||
+      match.includes('To:') ||
+      /.*@.*/.test(match)
+    );
+    
+    if (isLikelyHeader) {
+      return '\n---\n' + fromLine + '\n';
+    }
+    return match;
+  });
+  
+  // Clean up any duplicate separators - multiple passes to catch all cases
+  text = text.replace(/\n---\n---\n/g, '\n---\n'); // Two consecutive separators
+  text = text.replace(/---\n\s*---\n/g, '---\n');  // Separators with whitespace between
+  text = text.replace(/(\n---\n)[\s\n]*(\n---\n)/g, '$1'); // Separators with newlines between
+  text = text.replace(/(---\n)+/g, '---\n'); // Multiple separators in a row
+  text = text.replace(/^---\n/, ''); // Remove separator at the very beginning
+  
+  // Make sure all separators are properly formatted with newlines
+  text = text.replace(/([^\n])---\n/g, '$1\n---\n');
+  
+  // One more pass to add separator before any remaining unmarked From: lines
+  const remainingFroms = /\n(From:.*?\n(?:(?:Sent|Date|To|Subject):.*?)+\n)/gi;
+  text = text.replace(remainingFroms, '\n---\n$1');
+  
+  // Final thorough cleanup of any duplicate separators
+  text = text.replace(/\n---\n---\n/g, '\n---\n'); // Two consecutive separators
+  text = text.replace(/---\n\s*---\n/g, '---\n');  // Separators with whitespace between
+  text = text.replace(/(\n---\n)[\s\n]*(\n---\n)/g, '$1'); // Separators with newlines between
+  text = text.replace(/(---\n)+/g, '---\n'); // Multiple separators in a row
   text = text.replace(/^---\n/, ''); // Remove separator at the very beginning
   
   return text;
@@ -102,8 +158,16 @@ export function htmlToText(html: string, options: HtmlToTextOptions = {}): strin
   text = text.replace(/<blockquote[^>]*>|<div[^>]*style=["'][^"']*border-left[^>]*>/gi, '\n---\n');
   text = text.replace(/<\/blockquote>|<\/div>/gi, '');
   
+  // Identify common From: lines that indicate a quoted email and add separator if missing
+  text = text.replace(/(\n)(From: [^\n]+)/gi, '$1---\n$2');
+  
   // Convert divs to paragraphs for easier processing
   text = text.replace(/<div\s[^>]*>/gi, '<div>');
+  
+  // Find and mark up all potential email headers in paragraphs
+  // Add our marker for email headers directly in the HTML
+  text = text.replace(/<p[^>]*>\s*(From:\s+[^<]*?)<br\s*\/?>/gi, '<p>---\n$1');
+  text = text.replace(/<p[^>]*>\s*(From:\s+[^<]*?)(\s*<\/p>)/gi, '<p>---\n$1$2');
   
   // Handle line breaks and paragraphs
   text = text
