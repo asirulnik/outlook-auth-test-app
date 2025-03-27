@@ -267,24 +267,30 @@ function processTables(text: string): string {
     });
     
     // Format the table as text
-    let result = '\n\n';
+    let result = '\n';
     
     // Add table rows
     rows.forEach((row, rowIndex) => {
       // Add separator after header if this is the first row
       if (rowIndex === 1 && headerMatch) {
-        result += '| ' + colWidths.map(width => '-'.repeat(width)).join(' | ') + ' |\n';
+        result += '|';
+        for (let i = 0; i < maxCols; i++) {
+          const borderWidth = colWidths[i];
+          result += ' ' + '-'.repeat(borderWidth) + ' |';
+        }
+        result += '\n';
       }
       
       // Add the row content
-      const rowText = '| ' + row.map((cell, colIndex) => {
-        return cell.padEnd(colWidths[colIndex]);
-      }).join(' | ') + ' |';
-      
-      result += rowText + '\n';
+      result += '|';
+      for (let i = 0; i < maxCols; i++) {
+        const cellContent = i < row.length ? row[i] : '';
+        result += ' ' + cellContent.padEnd(colWidths[i]) + ' |';
+      }
+      result += '\n';
     });
     
-    return result + '\n';
+    return result;
   });
 }
 
