@@ -87,6 +87,16 @@ export interface NewMailFolder {
   isHidden?: boolean;
 }
 
+// Interface for date filter options
+export interface DateFilterOptions {
+  beforeDate?: Date;
+  afterDate?: Date;
+  previousPeriod?: {
+    value: number;
+    unit: 'days' | 'weeks' | 'months' | 'years';
+  };
+}
+
 // Interface for API errors
 interface GraphApiError {
   statusCode?: number;
@@ -306,13 +316,19 @@ export class MailService {
   }
 
   /**
-   * List emails in a folder
+   * List emails in a folder with optional date filtering
    * @param folderIdOrWellKnownName Folder ID, wellKnownName (like 'inbox'), or path (like '/Inbox')
    * @param userEmail Email address of the user
    * @param limit Number of emails to retrieve (default: 25)
+   * @param dateFilters Optional date filters
    * @returns List of email messages
    */
-  async listEmails(folderIdOrWellKnownName: string, userEmail: string, limit: number = 25): Promise<EmailMessage[]> {
+  async listEmails(
+    folderIdOrWellKnownName: string, 
+    userEmail: string, 
+    limit: number = 25, 
+    dateFilters?: DateFilterOptions
+  ): Promise<EmailMessage[]> {
     try {
       if (!userEmail) {
         throw new Error('User email is required for application permissions flow');
@@ -325,7 +341,54 @@ export class MailService {
       const endpoint = `/users/${userEmail}/mailFolders/${folderId}/messages`;
       
       // Query parameters for pagination and fields
-      const queryParams = `?$top=${limit}&$select=id,subject,from,receivedDateTime,bodyPreview,hasAttachments,isRead&$orderby=receivedDateTime desc`;
+      let queryParams = `?$top=${limit}&$select=id,subject,from,receivedDateTime,bodyPreview,hasAttachments,isRead&$orderby=receivedDateTime desc`;
+      
+      // Add date filters if provided
+      if (dateFilters) {
+        let filterString = '';
+        
+        // Process 'previous period' first (e.g., 'previous 7 days')
+        if (dateFilters.previousPeriod) {
+          const { value, unit } = dateFilters.previousPeriod;
+          const now = new Date();
+          const pastDate = new Date();
+          
+          switch(unit) {
+            case 'days':
+              pastDate.setDate(now.getDate() - value);
+              break;
+            case 'weeks':
+              pastDate.setDate(now.getDate() - (value * 7));
+              break;
+            case 'months':
+              pastDate.setMonth(now.getMonth() - value);
+              break;
+            case 'years':
+              pastDate.setFullYear(now.getFullYear() - value);
+              break;
+          }
+          
+          dateFilters.afterDate = pastDate;
+        }
+        
+        // Process before/after dates
+        if (dateFilters.afterDate) {
+          const isoDate = dateFilters.afterDate.toISOString();
+          filterString += filterString ? ' and ' : '';
+          filterString += `receivedDateTime ge ${isoDate}`;
+        }
+        
+        if (dateFilters.beforeDate) {
+          const isoDate = dateFilters.beforeDate.toISOString();
+          filterString += filterString ? ' and ' : '';
+          filterString += `receivedDateTime le ${isoDate}`;
+        }
+        
+        // Add filter to query params if we have any filters
+        if (filterString) {
+          queryParams += `&$filter=${encodeURIComponent(filterString)}`;
+        }
+      }
       
       // Make the request to Microsoft Graph
       const response = await this.client

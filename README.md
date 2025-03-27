@@ -33,9 +33,9 @@ npx ts-node src/index.ts <command> [options]
   npx ts-node src/index.ts list-child-folders "/Inbox" --user your-email@example.com
   ```
 
-- **list-emails**: List messages in a folder
+- **list-emails**: List messages in a folder with date filtering options
   ```
-  npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com [--limit 10]
+  npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com [--limit 10] [--before 2023-12-31] [--after 2023-01-01] [--previous 7 --unit days]
   ```
 
 - **read-email**: Retrieve a specific email message
@@ -99,6 +99,28 @@ This tool supports both folder IDs and plain-text folder paths:
 - Nested paths like "/ParentFolder/ChildFolder" work seamlessly
 - The tool will automatically convert between paths and IDs as needed
 
+## Date Filtering Options
+
+When listing emails, you can filter by date using these options:
+
+- **--before YYYY-MM-DD**: Show only emails received before the specified date
+- **--after YYYY-MM-DD**: Show only emails received after the specified date
+- **--previous VALUE**: Show emails from the previous period (e.g., 7)
+- **--unit UNIT**: Time unit for --previous (days, weeks, months, years)
+
+These filters can be used individually or combined for more specific queries:
+
+```
+# Emails from the last 30 days
+npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com --previous 30 --unit days
+
+# Emails from Q1 2023
+npx ts-node src/index.ts list-emails "/Archive" --user your-email@example.com --after 2023-01-01 --before 2023-03-31
+
+# Emails from the previous year
+npx ts-node src/index.ts list-emails "/Clients" --user your-email@example.com --previous 1 --unit years
+```
+
 ## Examples
 
 List all folders in your mailbox:
@@ -106,9 +128,9 @@ List all folders in your mailbox:
 npx ts-node src/index.ts list-folders --user your-email@example.com
 ```
 
-List emails in the Inbox folder:
+List emails in the Inbox folder from the last week:
 ```
-npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com --limit 20
+npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com --previous 7 --unit days
 ```
 
 Move an email to a specific folder:

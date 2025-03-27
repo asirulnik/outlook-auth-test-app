@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { MailService, MailFolder, EmailMessage, EmailDetails, NewEmailDraft, NewMailFolder } from './mailService';
+import { MailService, MailFolder, EmailMessage, EmailDetails, NewEmailDraft, NewMailFolder, DateFilterOptions } from './mailService';
 import { htmlToText } from './htmlToText';
 
 // Create a new instance of the Command class
@@ -192,6 +192,10 @@ program
   .description('List emails in a specific mail folder')
   .requiredOption('-u, --user <email>', 'Email address of the user')
   .option('-l, --limit <number>', 'Number of emails to retrieve', '25')
+  .option('--before <date>', 'Only show emails before this date (YYYY-MM-DD)')
+  .option('--after <date>', 'Only show emails after this date (YYYY-MM-DD)')
+  .option('--previous <value>', 'Show emails from previous period (e.g., 7)')
+  .option('--unit <unit>', 'Time unit for --previous (days, weeks, months, years)', 'days')
   .action(async (folderIdOrPath, options) => {
     try {
       const mailService = new MailService();
@@ -202,9 +206,53 @@ program
         folderPath = await mailService.getFolderPath(folderIdOrPath, options.user);
       }
       
-      const emails = await mailService.listEmails(folderIdOrPath, options.user, parseInt(options.limit));
+      // Process date filters
+      const dateFilters: DateFilterOptions = {};
       
-      console.log(`\nEmails in Folder: ${folderPath} (User: ${options.user})`);
+      if (options.before) {
+        dateFilters.beforeDate = new Date(options.before);
+        // Set time to end of day
+        dateFilters.beforeDate.setHours(23, 59, 59, 999);
+      }
+      
+      if (options.after) {
+        dateFilters.afterDate = new Date(options.after);
+        // Set time to start of day
+        dateFilters.afterDate.setHours(0, 0, 0, 0);
+      }
+      
+      if (options.previous && !isNaN(parseInt(options.previous))) {
+        const value = parseInt(options.previous);
+        const unit = options.unit as 'days' | 'weeks' | 'months' | 'years';
+        
+        if (['days', 'weeks', 'months', 'years'].includes(unit)) {
+          dateFilters.previousPeriod = { value, unit };
+        } else {
+          console.warn(`Warning: Invalid time unit '${unit}'. Using 'days' instead.`);
+          dateFilters.previousPeriod = { value, unit: 'days' };
+        }
+      }
+      
+      const emails = await mailService.listEmails(
+        folderIdOrPath, 
+        options.user, 
+        parseInt(options.limit), 
+        Object.keys(dateFilters).length > 0 ? dateFilters : undefined
+      );
+      
+      // Prepare date filter description for output
+      let filterDesc = '';
+      if (dateFilters.beforeDate) {
+        filterDesc += ` before ${dateFilters.beforeDate.toLocaleDateString()}`;
+      }
+      if (dateFilters.afterDate) {
+        filterDesc += `${filterDesc ? ' and' : ''} after ${dateFilters.afterDate.toLocaleDateString()}`;
+      }
+      if (dateFilters.previousPeriod) {
+        filterDesc = ` from previous ${dateFilters.previousPeriod.value} ${dateFilters.previousPeriod.unit}`;
+      }
+      
+      console.log(`\nEmails in Folder: ${folderPath}${filterDesc} (User: ${options.user})`);
       printEmails(emails);
     } catch (error) {
       console.error('Error listing emails:', error);
