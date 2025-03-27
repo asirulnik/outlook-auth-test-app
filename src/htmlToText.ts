@@ -174,14 +174,22 @@ export function htmlToText(html: string, options: HtmlToTextOptions = {}): strin
     .replace(/\n\s+\n/g, '\n')              // Remove extra spaces between paragraphs
     .replace(/\n{2,}/g, '\n')               // No consecutive newlines
     .replace(/\t/g, '    ')                 // Convert tabs to spaces
-    .replace(/[ \t]+\n/g, '\n')             // Remove trailing whitespace
-    .replace(/^\s+/, '')                    // Remove leading whitespace
-    .replace(/\s+$/g, '');                  // Remove trailing whitespace from the end
+    .replace(/[ \t]+\n/g, '\n')             // Remove trailing whitespace at end of lines
+    .replace(/^\s+/, '')                    // Remove leading whitespace from start of document
+    .replace(/\s+$/g, '')                   // Remove trailing whitespace from end of document
+    .replace(/[ \t]+$/gm, '');              // Remove trailing whitespace from each line
+  
+  // Final processing
   
   // Word wrapping if enabled
   if (settings.wordwrap && typeof settings.wordwrap === 'number') {
     text = applyWordWrap(text, settings.wordwrap);
   }
+  
+  // Final pass to remove trailing whitespace from every line
+  text = text.split('\n')
+    .map(line => line.trimRight())
+    .join('\n');
   
   return text;
 }
@@ -375,7 +383,7 @@ function applyWordWrap(text: string, width: number): string {
     for (const word of words) {
       // If adding this word would exceed the width, start a new line
       if (currentLine.length + word.length > width && currentLine.length > indentWidth) {
-        wrappedLines.push(currentLine);
+        wrappedLines.push(currentLine.trimRight()); // Trim any trailing whitespace
         currentLine = indent + word;
       } else {
         // Add the word with a space if it's not the first word on the line
@@ -387,9 +395,9 @@ function applyWordWrap(text: string, width: number): string {
       }
     }
     
-    // Add the last line if it has content
+    // Add the last line if it has content, trimmed to remove trailing spaces
     if (currentLine.trim()) {
-      wrappedLines.push(currentLine);
+      wrappedLines.push(currentLine.trimRight());
     }
   }
   
