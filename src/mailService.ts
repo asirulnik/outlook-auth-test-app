@@ -396,29 +396,30 @@ export class MailService {
             // If no specific fields left (only 'all' was specified or fields is empty), default to all fields
             if (fields.length === 0 || searchOptions.searchFields.includes('all')) {
               // Search in all fields (body, subject, from, toRecipients, ccRecipients)
-              const searchExpr = encodeURIComponent(`'${searchOptions.searchQuery.replace(/'/g, "''")}}'`);
+              // Use double quotes for search terms to avoid syntax errors with apostrophes
+              const searchExpr = encodeURIComponent(`"${searchOptions.searchQuery.replace(/"/g, '\"')}"`);
               
               // Use $search for full-text search across all fields
               queryParams += `&$search=${searchExpr}`;
             } else {
               // Search in specific fields
-              const escapedQuery = searchOptions.searchQuery.replace(/'/g, "''");
+              const escapedQuery = searchOptions.searchQuery.replace(/"/g, '\\"'); // Escape double quotes for OData query
               const searchConditions: string[] = [];
               
               fields.forEach(field => {
                 switch(field) {
                   case 'subject':
-                    searchConditions.push(`contains(subject, '${escapedQuery}')`);
+                    searchConditions.push(`contains(subject, "${escapedQuery}")`);
                     break;
                   case 'body':
-                    searchConditions.push(`contains(body/content, '${escapedQuery}')`);
+                    searchConditions.push(`contains(body/content, "${escapedQuery}")`);
                     break;
                   case 'from':
-                    searchConditions.push(`contains(from/emailAddress/address, '${escapedQuery}') or contains(from/emailAddress/name, '${escapedQuery}')`);
+                    searchConditions.push(`contains(from/emailAddress/address, "${escapedQuery}") or contains(from/emailAddress/name, "${escapedQuery}")`);
                     break;
                   case 'recipients':
-                    searchConditions.push(`(toRecipients/any(r: contains(r/emailAddress/address, '${escapedQuery}') or contains(r/emailAddress/name, '${escapedQuery}'))) or ` +
-                      `(ccRecipients/any(r: contains(r/emailAddress/address, '${escapedQuery}') or contains(r/emailAddress/name, '${escapedQuery}')))`);
+                    searchConditions.push(`(toRecipients/any(r: contains(r/emailAddress/address, "${escapedQuery}") or contains(r/emailAddress/name, "${escapedQuery}"))) or ` +
+                      `(ccRecipients/any(r: contains(r/emailAddress/address, "${escapedQuery}") or contains(r/emailAddress/name, "${escapedQuery}")))`);
                     break;
                 }
               });
@@ -430,7 +431,8 @@ export class MailService {
             }
           } else {
             // Default to search all fields
-            const searchExpr = encodeURIComponent(`'${searchOptions.searchQuery.replace(/'/g, "''")}}'`);
+            // Use double quotes for search terms to avoid syntax errors with apostrophes
+            const searchExpr = encodeURIComponent(`"${searchOptions.searchQuery.replace(/"/g, '\"')}"`);
             queryParams += `&$search=${searchExpr}`;
           }
         }
