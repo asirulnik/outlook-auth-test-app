@@ -15,26 +15,29 @@ program
   .version('1.0.0');
 
 // Helper function to print folders in a tree structure
-function printFolders(folders: MailFolder[], level = 0, prefix = '') {
+async function printFolders(folders: MailFolder[], mailService: MailService, userEmail: string, level = 0, prefix = '') {
   for (let i = 0; i < folders.length; i++) {
     const folder = folders[i];
     const isLast = i === folders.length - 1;
     const folderPrefix = isLast ? '└── ' : '├── ';
     const childPrefix = isLast ? '    ' : '│   ';
     
-    // Print folder details
-    console.log(`${prefix}${folderPrefix}${folder.displayName} ${formatFolderInfo(folder)}`);
+    // Get folder path
+    const folderPath = folder.fullPath || await mailService.getFolderPath(folder.id, userEmail);
+    
+    // Print folder details with path instead of ID
+    console.log(`${prefix}${folderPrefix}${folder.displayName} ${formatFolderInfo(folder, folderPath)}`);
     
     // If this folder has child folders, indicate with a message
     if (folder.childFolderCount > 0) {
-      console.log(`${prefix}${childPrefix}<Folder has ${folder.childFolderCount} child folders. Use 'outlook-mail-cli list-child-folders ${folder.id}' to view.>`);
+      console.log(`${prefix}${childPrefix}<Folder has ${folder.childFolderCount} child folders. Use 'npx ts-node src/index.ts list-child-folders "${folderPath}" --user ${userEmail}' to view.>`);
     }
   }
 }
 
 // Format folder information
-function formatFolderInfo(folder: MailFolder): string {
-  let info = `(ID: ${folder.id}`;
+function formatFolderInfo(folder: MailFolder, folderPath: string): string {
+  let info = `(Path: ${folderPath}`;
   
   if (folder.unreadItemCount !== undefined) {
     info += `, Unread: ${folder.unreadItemCount}`;
@@ -145,8 +148,11 @@ program
       const mailService = new MailService();
       const folders = await mailService.getMailFolders(options.user);
       
+      // Build folder path map for all folders
+      await mailService.buildFolderPathMap(options.user);
+      
       console.log(`\nMail Folders for ${options.user}:`);
-      printFolders(folders);
+      await printFolders(folders, mailService, options.user);
       console.log('\n');
     } catch (error) {
       console.error('Error listing folders:', error);
@@ -156,16 +162,23 @@ program
 
 // Command to list child folders
 program
-  .command('list-child-folders <folderId>')
+  .command('list-child-folders <folderIdOrPath>')
   .description('List child folders of a specific mail folder')
   .requiredOption('-u, --user <email>', 'Email address of the user (required for app-only authentication)')
-  .action(async (folderId, options) => {
+  .action(async (folderIdOrPath, options) => {
     try {
       const mailService = new MailService();
-      const folders = await mailService.getChildFolders(folderId, options.user);
       
-      console.log(`\nChild Folders for Folder ID: ${folderId} (User: ${options.user})`);
-      printFolders(folders);
+      // Resolve path if needed
+      let folderPath = folderIdOrPath;
+      if (!folderIdOrPath.startsWith('/')) {
+        folderPath = await mailService.getFolderPath(folderIdOrPath, options.user);
+      }
+      
+      const folders = await mailService.getChildFolders(folderIdOrPath, options.user);
+      
+      console.log(`\nChild Folders for Folder: ${folderPath} (User: ${options.user})`);
+      await printFolders(folders, mailService, options.user);
       console.log('\n');
     } catch (error) {
       console.error('Error listing child folders:', error);
@@ -175,16 +188,23 @@ program
 
 // Command to list emails in a folder
 program
-  .command('list-emails <folderId>')
+  .command('list-emails <folderIdOrPath>')
   .description('List emails in a specific mail folder')
   .requiredOption('-u, --user <email>', 'Email address of the user')
   .option('-l, --limit <number>', 'Number of emails to retrieve', '25')
-  .action(async (folderId, options) => {
+  .action(async (folderIdOrPath, options) => {
     try {
       const mailService = new MailService();
-      const emails = await mailService.listEmails(folderId, options.user, parseInt(options.limit));
       
-      console.log(`\nEmails in Folder ID: ${folderId} (User: ${options.user})`);
+      // Resolve path if needed
+      let folderPath = folderIdOrPath;
+      if (!folderIdOrPath.startsWith('/')) {
+        folderPath = await mailService.getFolderPath(folderIdOrPath, options.user);
+      }
+      
+      const emails = await mailService.listEmails(folderIdOrPath, options.user, parseInt(options.limit));
+      
+      console.log(`\nEmails in Folder: ${folderPath} (User: ${options.user})`);
       printEmails(emails);
     } catch (error) {
       console.error('Error listing emails:', error);
@@ -211,15 +231,22 @@ program
 
 // Command to move an email to another folder
 program
-  .command('move-email <emailId> <destinationFolderId>')
+  .command('move-email <emailId> <destinationFolderIdOrPath>')
   .description('Move an email to another folder')
   .requiredOption('-u, --user <email>', 'Email address of the user')
-  .action(async (emailId, destinationFolderId, options) => {
+  .action(async (emailId, destinationFolderIdOrPath, options) => {
     try {
       const mailService = new MailService();
-      await mailService.moveEmail(emailId, destinationFolderId, options.user);
       
-      console.log(`Email ${emailId} successfully moved to folder ${destinationFolderId}`);
+      // Resolve path if needed
+      let folderPath = destinationFolderIdOrPath;
+      if (!destinationFolderIdOrPath.startsWith('/')) {
+        folderPath = await mailService.getFolderPath(destinationFolderIdOrPath, options.user);
+      }
+      
+      await mailService.moveEmail(emailId, destinationFolderIdOrPath, options.user);
+      
+      console.log(`Email ${emailId} successfully moved to folder ${folderPath}`);
     } catch (error) {
       console.error('Error moving email:', error);
       process.exit(1);
@@ -228,15 +255,22 @@ program
 
 // Command to copy an email to another folder
 program
-  .command('copy-email <emailId> <destinationFolderId>')
+  .command('copy-email <emailId> <destinationFolderIdOrPath>')
   .description('Copy an email to another folder')
   .requiredOption('-u, --user <email>', 'Email address of the user')
-  .action(async (emailId, destinationFolderId, options) => {
+  .action(async (emailId, destinationFolderIdOrPath, options) => {
     try {
       const mailService = new MailService();
-      await mailService.copyEmail(emailId, destinationFolderId, options.user);
       
-      console.log(`Email ${emailId} successfully copied to folder ${destinationFolderId}`);
+      // Resolve path if needed
+      let folderPath = destinationFolderIdOrPath;
+      if (!destinationFolderIdOrPath.startsWith('/')) {
+        folderPath = await mailService.getFolderPath(destinationFolderIdOrPath, options.user);
+      }
+      
+      await mailService.copyEmail(emailId, destinationFolderIdOrPath, options.user);
+      
+      console.log(`Email ${emailId} successfully copied to folder ${folderPath}`);
     } catch (error) {
       console.error('Error copying email:', error);
       process.exit(1);
@@ -318,7 +352,7 @@ program
   .command('create-folder <name>')
   .description('Create a new mail folder')
   .requiredOption('-u, --user <email>', 'Email address of the user')
-  .option('-p, --parent <folderId>', 'Optional parent folder ID')
+  .option('-p, --parent <parentFolderIdOrPath>', 'Optional parent folder ID or path')
   .option('--hidden', 'Create the folder as hidden')
   .action(async (name, options) => {
     try {
@@ -330,7 +364,10 @@ program
       const mailService = new MailService();
       const result = await mailService.createFolder(newFolder, options.user, options.parent);
       
-      console.log(`Folder "${name}" created successfully with ID: ${result.id}`);
+      // Get the path for the newly created folder
+      const folderPath = await mailService.getFolderPath(result.id, options.user);
+      
+      console.log(`Folder "${name}" created successfully with path: ${folderPath}`);
     } catch (error) {
       console.error('Error creating folder:', error);
       process.exit(1);
@@ -339,19 +376,32 @@ program
 
 // Command to rename a mail folder
 program
-  .command('rename-folder <folderId> <newName>')
+  .command('rename-folder <folderIdOrPath> <newName>')
   .description('Rename a mail folder')
   .requiredOption('-u, --user <email>', 'Email address of the user')
-  .action(async (folderId, newName, options) => {
+  .action(async (folderIdOrPath, newName, options) => {
     try {
       const updatedFolder: Partial<NewMailFolder> = {
         displayName: newName
       };
       
       const mailService = new MailService();
-      await mailService.updateFolder(folderId, updatedFolder, options.user);
       
-      console.log(`Folder ${folderId} renamed to "${newName}" successfully`);
+      // Resolve path if needed and get current path for display
+      let folderPath = folderIdOrPath;
+      if (!folderIdOrPath.startsWith('/')) {
+        folderPath = await mailService.getFolderPath(folderIdOrPath, options.user);
+      }
+      
+      await mailService.updateFolder(folderIdOrPath, updatedFolder, options.user);
+      
+      // Get parent path
+      const lastSlashIndex = folderPath.lastIndexOf('/');
+      const parentPath = lastSlashIndex > 0 ? folderPath.substring(0, lastSlashIndex) : '';
+      const newPath = parentPath + '/' + newName;
+      
+      console.log(`Folder ${folderPath} renamed to "${newName}" successfully`);
+      console.log(`New path: ${newPath}`);
     } catch (error) {
       console.error('Error renaming folder:', error);
       process.exit(1);
@@ -360,15 +410,32 @@ program
 
 // Command to move a folder to another parent folder
 program
-  .command('move-folder <folderId> <destinationParentFolderId>')
+  .command('move-folder <folderIdOrPath> <destinationParentFolderIdOrPath>')
   .description('Move a folder to another parent folder')
   .requiredOption('-u, --user <email>', 'Email address of the user')
-  .action(async (folderId, destinationParentFolderId, options) => {
+  .action(async (folderIdOrPath, destinationParentFolderIdOrPath, options) => {
     try {
       const mailService = new MailService();
-      await mailService.moveFolder(folderId, destinationParentFolderId, options.user);
       
-      console.log(`Folder ${folderId} successfully moved to parent folder ${destinationParentFolderId}`);
+      // Resolve paths if needed
+      let sourceFolderPath = folderIdOrPath;
+      if (!folderIdOrPath.startsWith('/')) {
+        sourceFolderPath = await mailService.getFolderPath(folderIdOrPath, options.user);
+      }
+      
+      let destinationFolderPath = destinationParentFolderIdOrPath;
+      if (!destinationParentFolderIdOrPath.startsWith('/')) {
+        destinationFolderPath = await mailService.getFolderPath(destinationParentFolderIdOrPath, options.user);
+      }
+      
+      await mailService.moveFolder(folderIdOrPath, destinationParentFolderIdOrPath, options.user);
+      
+      // Get folder name from source path
+      const folderName = sourceFolderPath.substring(sourceFolderPath.lastIndexOf('/') + 1);
+      const newPath = destinationFolderPath + '/' + folderName;
+      
+      console.log(`Folder ${sourceFolderPath} successfully moved to ${destinationFolderPath}`);
+      console.log(`New path: ${newPath}`);
     } catch (error) {
       console.error('Error moving folder:', error);
       process.exit(1);
@@ -377,15 +444,32 @@ program
 
 // Command to copy a folder to another parent folder
 program
-  .command('copy-folder <folderId> <destinationParentFolderId>')
+  .command('copy-folder <folderIdOrPath> <destinationParentFolderIdOrPath>')
   .description('Copy a folder to another parent folder (may not be supported by the API)')
   .requiredOption('-u, --user <email>', 'Email address of the user')
-  .action(async (folderId, destinationParentFolderId, options) => {
+  .action(async (folderIdOrPath, destinationParentFolderIdOrPath, options) => {
     try {
       const mailService = new MailService();
-      await mailService.copyFolder(folderId, destinationParentFolderId, options.user);
       
-      console.log(`Folder ${folderId} successfully copied to parent folder ${destinationParentFolderId}`);
+      // Resolve paths if needed
+      let sourceFolderPath = folderIdOrPath;
+      if (!folderIdOrPath.startsWith('/')) {
+        sourceFolderPath = await mailService.getFolderPath(folderIdOrPath, options.user);
+      }
+      
+      let destinationFolderPath = destinationParentFolderIdOrPath;
+      if (!destinationParentFolderIdOrPath.startsWith('/')) {
+        destinationFolderPath = await mailService.getFolderPath(destinationParentFolderIdOrPath, options.user);
+      }
+      
+      await mailService.copyFolder(folderIdOrPath, destinationParentFolderIdOrPath, options.user);
+      
+      // Get folder name from source path
+      const folderName = sourceFolderPath.substring(sourceFolderPath.lastIndexOf('/') + 1);
+      const newPath = destinationFolderPath + '/' + folderName;
+      
+      console.log(`Folder ${sourceFolderPath} successfully copied to ${destinationFolderPath}`);
+      console.log(`Copy path: ${newPath}`);
     } catch (error: unknown) {
       const err = error as { message?: string };
       if (err.message?.includes('not supported')) {
