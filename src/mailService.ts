@@ -342,8 +342,17 @@ export class MailService {
       // Build the API endpoint
       const endpoint = `/users/${userEmail}/mailFolders/${folderId}/messages`;
       
-      // Query parameters for pagination and fields
-      let queryParams = `?$top=${limit}&$select=id,subject,from,receivedDateTime,bodyPreview,hasAttachments,isRead&$orderby=receivedDateTime desc`;
+      // When initializing query parameters, don't include orderby if we're going to search
+      // Microsoft Graph API doesn't support using $search and $orderby together
+      const willUseSearch = searchOptions && searchOptions.searchQuery && searchOptions.searchQuery.trim().length > 0;
+      
+      // Query parameters for pagination and fields - only include sort if not searching
+      let queryParams = `?$top=${limit}&$select=id,subject,from,receivedDateTime,bodyPreview,hasAttachments,isRead`;
+      
+      // Only add ordering if we're not searching
+      if (!willUseSearch) {
+        queryParams += `&$orderby=receivedDateTime desc`;
+      }
       
       // Add search and date filters if provided
       if (searchOptions) {
