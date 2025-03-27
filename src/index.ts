@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { MailService, MailFolder, EmailMessage, EmailDetails, NewEmailDraft, NewMailFolder, DateFilterOptions } from './mailService';
+import { MailService, MailFolder, EmailMessage, EmailDetails, NewEmailDraft, NewMailFolder, EmailSearchOptions } from './mailService';
 import { htmlToText } from './htmlToText';
 
 // Create a new instance of the Command class
@@ -196,6 +196,8 @@ program
   .option('--after <date>', 'Only show emails after this date (YYYY-MM-DD)')
   .option('--previous <value>', 'Show emails from previous period (e.g., 7)')
   .option('--unit <unit>', 'Time unit for --previous (days, weeks, months, years)', 'days')
+  .option('--search <query>', 'Search for emails containing the specified text')
+  .option('--fields <fields>', 'Comma-separated list of fields to search (subject,body,from,recipients,all)', 'all')
   .action(async (folderIdOrPath, options) => {
     try {
       const mailService = new MailService();
@@ -206,19 +208,19 @@ program
         folderPath = await mailService.getFolderPath(folderIdOrPath, options.user);
       }
       
-      // Process date filters
-      const dateFilters: DateFilterOptions = {};
+      // Process search and date filters
+      const searchOptions: EmailSearchOptions = {};
       
       if (options.before) {
-        dateFilters.beforeDate = new Date(options.before);
+        searchOptions.beforeDate = new Date(options.before);
         // Set time to end of day
-        dateFilters.beforeDate.setHours(23, 59, 59, 999);
+        searchOptions.beforeDate.setHours(23, 59, 59, 999);
       }
       
       if (options.after) {
-        dateFilters.afterDate = new Date(options.after);
+        searchOptions.afterDate = new Date(options.after);
         // Set time to start of day
-        dateFilters.afterDate.setHours(0, 0, 0, 0);
+        searchOptions.afterDate.setHours(0, 0, 0, 0);
       }
       
       if (options.previous && !isNaN(parseInt(options.previous))) {
@@ -226,10 +228,34 @@ program
         const unit = options.unit as 'days' | 'weeks' | 'months' | 'years';
         
         if (['days', 'weeks', 'months', 'years'].includes(unit)) {
-          dateFilters.previousPeriod = { value, unit };
+          searchOptions.previousPeriod = { value, unit };
         } else {
           console.warn(`Warning: Invalid time unit '${unit}'. Using 'days' instead.`);
-          dateFilters.previousPeriod = { value, unit: 'days' };
+          searchOptions.previousPeriod = { value, unit: 'days' };
+        }
+      }
+      
+      // Process search options
+      if (options.search) {
+        searchOptions.searchQuery = options.search;
+        
+        // Process search fields
+        if (options.fields) {
+          const validFields = ['subject', 'body', 'from', 'recipients', 'all'];
+          const requestedFields = options.fields.split(',').map((f: string) => f.trim().toLowerCase());
+          
+          // Filter to only valid field values
+          searchOptions.searchFields = requestedFields.filter((f: string) => 
+            validFields.includes(f)
+          ) as ('subject' | 'body' | 'from' | 'recipients' | 'all')[];
+          
+          // If no valid fields specified, default to 'all'
+          if (searchOptions.searchFields.length === 0) {
+            searchOptions.searchFields = ['all'];
+          }
+        } else {
+          // Default to all fields
+          searchOptions.searchFields = ['all'];
         }
       }
       
@@ -237,23 +263,33 @@ program
         folderIdOrPath, 
         options.user, 
         parseInt(options.limit), 
-        Object.keys(dateFilters).length > 0 ? dateFilters : undefined
+        Object.keys(searchOptions).length > 0 ? searchOptions : undefined
       );
       
-      // Prepare date filter description for output
+      // Prepare filter description for output
       let filterDesc = '';
-      if (dateFilters.beforeDate) {
-        filterDesc += ` before ${dateFilters.beforeDate.toLocaleDateString()}`;
+      if (searchOptions.beforeDate) {
+        filterDesc += ` before ${searchOptions.beforeDate.toLocaleDateString()}`;
       }
-      if (dateFilters.afterDate) {
-        filterDesc += `${filterDesc ? ' and' : ''} after ${dateFilters.afterDate.toLocaleDateString()}`;
+      if (searchOptions.afterDate) {
+        filterDesc += `${filterDesc ? ' and' : ''} after ${searchOptions.afterDate.toLocaleDateString()}`;
       }
-      if (dateFilters.previousPeriod) {
-        filterDesc = ` from previous ${dateFilters.previousPeriod.value} ${dateFilters.previousPeriod.unit}`;
+      if (searchOptions.previousPeriod) {
+        filterDesc = ` from previous ${searchOptions.previousPeriod.value} ${searchOptions.previousPeriod.unit}`;
+      }
+      if (searchOptions.searchQuery) {
+        const searchDesc = searchOptions.searchFields?.includes('all') ? 
+          `all fields` : 
+          searchOptions.searchFields?.join(', ');
+        
+        filterDesc += `${filterDesc ? ' ' : ''} matching "${searchOptions.searchQuery}" in ${searchDesc}`;
       }
       
       console.log(`\nEmails in Folder: ${folderPath}${filterDesc} (User: ${options.user})`);
       printEmails(emails);
+
+      // Print summary of results
+      console.log(`\nFound ${emails.length} email(s) matching your criteria.`);
     } catch (error) {
       console.error('Error listing emails:', error);
       process.exit(1);

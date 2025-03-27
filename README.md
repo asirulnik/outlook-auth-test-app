@@ -33,9 +33,9 @@ npx ts-node src/index.ts <command> [options]
   npx ts-node src/index.ts list-child-folders "/Inbox" --user your-email@example.com
   ```
 
-- **list-emails**: List messages in a folder with date filtering options
+- **list-emails**: List messages in a folder with search and date filtering options
   ```
-  npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com [--limit 10] [--before 2023-12-31] [--after 2023-01-01] [--previous 7 --unit days]
+  npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com [--limit 10] [--search "keyword"] [--fields subject,body] [--before 2023-12-31] [--after 2023-01-01] [--previous 7 --unit days]
   ```
 
 - **read-email**: Retrieve a specific email message
@@ -99,27 +99,38 @@ This tool supports both folder IDs and plain-text folder paths:
 - Nested paths like "/ParentFolder/ChildFolder" work seamlessly
 - The tool will automatically convert between paths and IDs as needed
 
-## Date Filtering Options
+## Search and Filter Options
 
-When listing emails, you can filter by date using these options:
+When listing emails, you can use powerful search and date filtering capabilities:
+
+### Full-Text Search Options
+
+- **--search "QUERY"**: Search for emails containing the specified text
+- **--fields FIELDS**: Comma-separated list of fields to search in (default: all)
+  - Available fields: subject, body, from, recipients, all
+  - Example: --fields subject,body
+
+### Date Filtering Options
 
 - **--before YYYY-MM-DD**: Show only emails received before the specified date
 - **--after YYYY-MM-DD**: Show only emails received after the specified date
 - **--previous VALUE**: Show emails from the previous period (e.g., 7)
 - **--unit UNIT**: Time unit for --previous (days, weeks, months, years)
 
-These filters can be used individually or combined for more specific queries:
+These options can be used individually or combined for powerful, targeted queries:
 
 ```
-# Emails from the last 30 days
-npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com --previous 30 --unit days
+# Search for emails containing "project update" in the subject or body from the last 30 days
+npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com --search "project update" --fields subject,body --previous 30 --unit days
 
-# Emails from Q1 2023
-npx ts-node src/index.ts list-emails "/Archive" --user your-email@example.com --after 2023-01-01 --before 2023-03-31
+# Search for emails from a specific sender in Q1 2023
+npx ts-node src/index.ts list-emails "/Archive" --user your-email@example.com --search "john.doe@example.com" --fields from --after 2023-01-01 --before 2023-03-31
 
-# Emails from the previous year
-npx ts-node src/index.ts list-emails "/Clients" --user your-email@example.com --previous 1 --unit years
+# Search for all mentions of "contract" in any field during the previous year
+npx ts-node src/index.ts list-emails "/Clients" --user your-email@example.com --search "contract" --previous 1 --unit years
 ```
+
+The search is performed server-side using Microsoft Graph API's search capabilities, which provides fast and efficient results even for large mailboxes.
 
 ## Examples
 
@@ -128,9 +139,9 @@ List all folders in your mailbox:
 npx ts-node src/index.ts list-folders --user your-email@example.com
 ```
 
-List emails in the Inbox folder from the last week:
+Search for emails containing "invoice" in the subject from the last week:
 ```
-npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com --previous 7 --unit days
+npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com --search "invoice" --fields subject --previous 7 --unit days
 ```
 
 Move an email to a specific folder:

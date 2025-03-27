@@ -87,14 +87,16 @@ export interface NewMailFolder {
   isHidden?: boolean;
 }
 
-// Interface for date filter options
-export interface DateFilterOptions {
+// Interface for email search and filter options
+export interface EmailSearchOptions {
   beforeDate?: Date;
   afterDate?: Date;
   previousPeriod?: {
     value: number;
     unit: 'days' | 'weeks' | 'months' | 'years';
   };
+  searchQuery?: string;
+  searchFields?: ('subject' | 'body' | 'from' | 'recipients' | 'all')[];
 }
 
 // Interface for API errors
@@ -316,18 +318,18 @@ export class MailService {
   }
 
   /**
-   * List emails in a folder with optional date filtering
+   * List emails in a folder with optional search and date filtering
    * @param folderIdOrWellKnownName Folder ID, wellKnownName (like 'inbox'), or path (like '/Inbox')
    * @param userEmail Email address of the user
    * @param limit Number of emails to retrieve (default: 25)
-   * @param dateFilters Optional date filters
+   * @param searchOptions Optional search and date filters
    * @returns List of email messages
    */
   async listEmails(
     folderIdOrWellKnownName: string, 
     userEmail: string, 
     limit: number = 25, 
-    dateFilters?: DateFilterOptions
+    searchOptions?: EmailSearchOptions
   ): Promise<EmailMessage[]> {
     try {
       if (!userEmail) {
@@ -343,13 +345,13 @@ export class MailService {
       // Query parameters for pagination and fields
       let queryParams = `?$top=${limit}&$select=id,subject,from,receivedDateTime,bodyPreview,hasAttachments,isRead&$orderby=receivedDateTime desc`;
       
-      // Add date filters if provided
-      if (dateFilters) {
+      // Add search and date filters if provided
+      if (searchOptions) {
         let filterString = '';
         
         // Process 'previous period' first (e.g., 'previous 7 days')
-        if (dateFilters.previousPeriod) {
-          const { value, unit } = dateFilters.previousPeriod;
+        if (searchOptions.previousPeriod) {
+          const { value, unit } = searchOptions.previousPeriod;
           const now = new Date();
           const pastDate = new Date();
           
@@ -368,20 +370,69 @@ export class MailService {
               break;
           }
           
-          dateFilters.afterDate = pastDate;
+          searchOptions.afterDate = pastDate;
         }
         
         // Process before/after dates
-        if (dateFilters.afterDate) {
-          const isoDate = dateFilters.afterDate.toISOString();
+        if (searchOptions.afterDate) {
+          const isoDate = searchOptions.afterDate.toISOString();
           filterString += filterString ? ' and ' : '';
           filterString += `receivedDateTime ge ${isoDate}`;
         }
         
-        if (dateFilters.beforeDate) {
-          const isoDate = dateFilters.beforeDate.toISOString();
+        if (searchOptions.beforeDate) {
+          const isoDate = searchOptions.beforeDate.toISOString();
           filterString += filterString ? ' and ' : '';
           filterString += `receivedDateTime le ${isoDate}`;
+        }
+        
+        // Process search query
+        if (searchOptions.searchQuery && searchOptions.searchQuery.trim()) {
+          // If search fields are specified, construct specific search
+          if (searchOptions.searchFields && searchOptions.searchFields.length > 0) {
+            // Skip 'all' if other specific fields are present
+            const fields = searchOptions.searchFields.filter(f => f !== 'all');
+            
+            // If no specific fields left (only 'all' was specified or fields is empty), default to all fields
+            if (fields.length === 0 || searchOptions.searchFields.includes('all')) {
+              // Search in all fields (body, subject, from, toRecipients, ccRecipients)
+              const searchExpr = encodeURIComponent(`'${searchOptions.searchQuery.replace(/'/g, "''")}}'`);
+              
+              // Use $search for full-text search across all fields
+              queryParams += `&$search=${searchExpr}`;
+            } else {
+              // Search in specific fields
+              const escapedQuery = searchOptions.searchQuery.replace(/'/g, "''");
+              const searchConditions: string[] = [];
+              
+              fields.forEach(field => {
+                switch(field) {
+                  case 'subject':
+                    searchConditions.push(`contains(subject, '${escapedQuery}')`);
+                    break;
+                  case 'body':
+                    searchConditions.push(`contains(body/content, '${escapedQuery}')`);
+                    break;
+                  case 'from':
+                    searchConditions.push(`contains(from/emailAddress/address, '${escapedQuery}') or contains(from/emailAddress/name, '${escapedQuery}')`);
+                    break;
+                  case 'recipients':
+                    searchConditions.push(`(toRecipients/any(r: contains(r/emailAddress/address, '${escapedQuery}') or contains(r/emailAddress/name, '${escapedQuery}'))) or ` +
+                      `(ccRecipients/any(r: contains(r/emailAddress/address, '${escapedQuery}') or contains(r/emailAddress/name, '${escapedQuery}')))`);
+                    break;
+                }
+              });
+              
+              if (searchConditions.length > 0) {
+                filterString += filterString ? ' and ' : '';
+                filterString += `(${searchConditions.join(' or ')})`;
+              }
+            }
+          } else {
+            // Default to search all fields
+            const searchExpr = encodeURIComponent(`'${searchOptions.searchQuery.replace(/'/g, "''")}}'`);
+            queryParams += `&$search=${searchExpr}`;
+          }
         }
         
         // Add filter to query params if we have any filters
