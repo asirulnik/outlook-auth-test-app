@@ -33,6 +33,9 @@ export interface EmailDetails extends EmailMessage {
   body?: {
     contentType: string;
     content: string;
+    originalContent?: string; // Original content before filtering quoted text
+    plainTextContent?: string; // HTML converted to text (if applicable)
+    originalPlainTextContent?: string; // Original HTML converted to text (if applicable)
   };
   toRecipients?: {
     emailAddress: {
@@ -97,6 +100,8 @@ export interface EmailSearchOptions {
   };
   searchQuery?: string;
   searchFields?: ('subject' | 'body' | 'from' | 'recipients' | 'all')[];
+  includeBodies?: boolean; // Flag to include full message bodies in results
+  hideQuotedContent?: boolean; // Flag to hide quoted content in message bodies
 }
 
 // Interface for API errors
@@ -277,7 +282,52 @@ export class MailService {
         .api(`${endpoint}${queryParams}`)
         .get();
       
-      return response.value;
+      let emails = response.value;
+      
+      // Process message bodies if requested to hide quoted content
+      if (searchOptions?.includeBodies && searchOptions?.hideQuotedContent && emails.length > 0) {
+        const { htmlToText } = require('./htmlToText');
+        
+        // Process each email to hide quoted content
+        emails = emails.map(email => {
+          if (email.body) {
+            if (email.body.contentType === 'html') {
+              // Convert HTML to text to identify quoted content
+              const plainText = htmlToText(email.body.content);
+              
+              // Split by the separator we use to mark quoted content
+              const parts = plainText.split('\n---\n');
+              
+              // Only keep the first part (the main message)
+              if (parts.length > 1) {
+                // Create a note that content was removed
+                const removedContentNote = '\n\n[Prior quoted messages removed]';
+                
+                // For HTML emails, we need to inject this note into the HTML
+                const noteHtml = '<div style="margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-left: 3px solid #ccc;"><em>[Prior quoted messages removed]</em></div>';
+                
+                // Save both versions
+                email.body.originalContent = email.body.content;
+                email.body.content = email.body.content.split('<blockquote')[0];
+                email.body.content += noteHtml;
+              }
+            } else {
+              // For plain text emails
+              const parts = email.body.content.split('\n---\n');
+              
+              // Only keep the first part (the main message)
+              if (parts.length > 1) {
+                // Save original content
+                email.body.originalContent = email.body.content;
+                email.body.content = parts[0] + '\n\n[Prior quoted messages removed]';
+              }
+            }
+          }
+          return email;
+        });
+      }
+      
+      return emails;
     } catch (error) {
       console.error('Error getting mail folders:', error);
       throw error;
@@ -323,14 +373,14 @@ export class MailService {
    * @param userEmail Email address of the user
    * @param limit Number of emails to retrieve (default: 25)
    * @param searchOptions Optional search and date filters
-   * @returns List of email messages
+   * @returns List of email messages (with optional bodies)
    */
   async listEmails(
     folderIdOrWellKnownName: string, 
     userEmail: string, 
     limit: number = 25, 
     searchOptions?: EmailSearchOptions
-  ): Promise<EmailMessage[]> {
+  ): Promise<EmailMessage[] | EmailDetails[]> {
     try {
       if (!userEmail) {
         throw new Error('User email is required for application permissions flow');
@@ -347,7 +397,14 @@ export class MailService {
       const willUseSearch = searchOptions && searchOptions.searchQuery && searchOptions.searchQuery.trim().length > 0;
       
       // Query parameters for pagination and fields - only include sort if not searching
-      let queryParams = `?$top=${limit}&$select=id,subject,from,receivedDateTime,bodyPreview,hasAttachments,isRead`;
+      let queryParams = `?$top=${limit}&$select=id,subject,from,receivedDateTime,`;
+      
+      // Include full body content if requested
+      if (searchOptions?.includeBodies) {
+        queryParams += `body,toRecipients,ccRecipients,`;
+      }
+      
+      queryParams += `bodyPreview,hasAttachments,isRead`;
       
       // Only add ordering if we're not searching
       if (!willUseSearch) {
@@ -468,9 +525,10 @@ export class MailService {
    * Get a specific email with details
    * @param emailId ID of the email to retrieve
    * @param userEmail Email address of the user
+   * @param hideQuotedContent Optional flag to hide quoted content in the email body
    * @returns Email details
    */
-  async getEmail(emailId: string, userEmail: string): Promise<EmailDetails> {
+  async getEmail(emailId: string, userEmail: string, hideQuotedContent: boolean = false): Promise<EmailDetails> {
     try {
       if (!userEmail) {
         throw new Error('User email is required for application permissions flow');
@@ -495,6 +553,43 @@ export class MailService {
           .get();
         
         response.attachments = attachmentsResponse.value;
+      }
+      
+      // Process message body to hide quoted content if requested
+      if (hideQuotedContent && response.body) {
+        const { htmlToText } = require('./htmlToText');
+        
+        if (response.body.contentType === 'html') {
+          // Convert HTML to text to identify quoted content
+          const plainText = htmlToText(response.body.content);
+          
+          // Split by the separator we use to mark quoted content
+          const parts = plainText.split('\n---\n');
+          
+          // Only keep the first part (the main message)
+          if (parts.length > 1) {
+            // Create a note that content was removed
+            const removedContentNote = '\n\n[Prior quoted messages removed]';
+            
+            // For HTML emails, we need to inject this note into the HTML
+            const noteHtml = '<div style="margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-left: 3px solid #ccc;"><em>[Prior quoted messages removed]</em></div>';
+            
+            // Save both versions
+            response.body.originalContent = response.body.content;
+            response.body.content = response.body.content.split('<blockquote')[0];
+            response.body.content += noteHtml;
+          }
+        } else {
+          // For plain text emails
+          const parts = response.body.content.split('\n---\n');
+          
+          // Only keep the first part (the main message)
+          if (parts.length > 1) {
+            // Save original content
+            response.body.originalContent = response.body.content;
+            response.body.content = parts[0] + '\n\n[Prior quoted messages removed]';
+          }
+        }
       }
       
       return response;

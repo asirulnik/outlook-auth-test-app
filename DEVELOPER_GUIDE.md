@@ -13,9 +13,11 @@ This project started as a simple authentication test application that could only
 - Ability to list top-level mail folders
 - Ability to list child folders of a specific folder
 
-### Current Version (1.0.0 - expanded)
+### Current Version (1.0.1)
 - Added comprehensive email operations
 - Added comprehensive folder operations
+- Added advanced email content handling with quoted content filtering
+- Added MCP server implementation for AI assistant integration
 - Improved error handling and TypeScript typing
 - Enhanced documentation
 
@@ -27,12 +29,17 @@ outlook-auth-test-app-1.0/
 ├── node_modules/        # Dependencies
 ├── src/                 # Source code
 │   ├── authHelper.ts    # Authentication with Microsoft Graph
+│   ├── htmlToText.ts    # HTML to text conversion utilities
 │   ├── index.ts         # CLI commands and interface
-│   └── mailService.ts   # Service for interacting with Microsoft Graph
+│   ├── mailService.ts   # Service for interacting with Microsoft Graph
+│   └── mcp-server.ts    # MCP server implementation
 ├── .env                 # Environment variables (not in repo)
 ├── .env.sample          # Sample environment variables
 ├── package.json         # Project metadata and dependencies
 ├── tsconfig.json        # TypeScript configuration
+├── CHANGELOG.md         # Change history
+├── CODE_EXPLANATION.md  # Code structure documentation
+├── DEVELOPER_GUIDE.md   # Developer guide
 └── README.md            # User documentation
 ```
 
@@ -52,7 +59,25 @@ See the AZURE_SETUP.md file for detailed setup instructions.
 This is the core of the application, containing:
 - Interfaces for email, folder, and related data structures
 - Methods for interacting with Microsoft Graph API endpoints
+- Advanced filtering and search capabilities
+- Support for quoted content identification and filtering
 - Error handling for API communication
+
+### HTML to Text Converter (htmlToText.ts)
+
+This utility module handles:
+- Converting HTML email content to readable plain text
+- Preserving formatting like lists, tables, and paragraphs
+- Identifying quoted content in emails (forwarded messages, replies)
+- Marking and separating quoted content for filtering
+
+### MCP Server Implementation (mcp-server.ts)
+
+This module provides:
+- Model Context Protocol (MCP) server implementation
+- Tools for accessing mail operations from AI assistants
+- TypeScript interfaces for all MCP tools and parameters
+- Error handling and response formatting for MCP communication
 
 ### Command Line Interface (index.ts)
 
@@ -65,10 +90,21 @@ This file defines all CLI commands using the Commander library, including:
 
 ### Email Operations
 - List emails in a folder (`list-emails`)
+  - With advanced search and filtering options
+  - Optional inclusion of full message bodies
+  - Optional filtering of quoted content
 - Read detailed email content (`read-email`)
+  - With optional filtering of quoted content
+  - Preserving original content for reference
 - Move emails between folders (`move-email`)
 - Copy emails between folders (`copy-email`)
 - Create draft emails (`create-draft`)
+
+### Email Content Handling
+- HTML to text conversion with formatting preservation
+- Quoted content detection and filtering
+- Support for various email formats and structures
+- Handling of forwarded messages and email chains
 
 ### Folder Operations
 - List top-level folders (`list-folders`)
@@ -89,23 +125,23 @@ This file defines all CLI commands using the Commander library, including:
    - Email sending (currently only supports drafts)
    - Attachment handling
    - Reply/forward operations
-   - Search functionality
 
 3. **Edge Cases**:
    - Large attachment handling is not optimized
-   - HTML email bodies are shown with simple tag stripping, which can be improved
+   - Quoted content detection may not identify all patterns
+   - MCP server might require additional features for specific AI assistant use cases
    - Limited pagination for large mailboxes
 
 ## Planned Next Steps
 
 ### Short-term Improvements
-1. Add support for email flagging and categorization
-2. Add support for sending emails (not just drafts)
-3. Improve HTML email rendering in the terminal
+1. Enhance quoted content detection with more patterns
+2. Add support for email flagging and categorization
+3. Add support for sending emails (not just drafts)
 4. Add attachment download/upload capabilities
 
 ### Medium-term Improvements
-1. Add search functionality for emails
+1. Enhance MCP server with more advanced email analysis tools
 2. Implement email reply and forward operations
 3. Add support for meeting invitations
 4. Implement better pagination for large mailboxes
@@ -152,6 +188,7 @@ This file defines all CLI commands using the Commander library, including:
    - Update TypeScript files in the `src/` directory
    - Run `npm run build` to compile
    - Test changes with appropriate commands
+   - For MCP server changes, test with MCP clients or the MCP Inspector tool
 
 2. **Adding New Commands**:
    - Update `mailService.ts` with new methods for API interaction
@@ -190,6 +227,8 @@ For detailed information about the Microsoft Graph API endpoints:
    - Clear separation between API service and CLI interface
    - Proper TypeScript typing for all methods and parameters
    - Comprehensive error handling
+   - Support for quoted content filtering where applicable
+   - MCP tool equivalents for CLI commands
    - Documentation for all new features
 
 2. Update documentation when adding new features:

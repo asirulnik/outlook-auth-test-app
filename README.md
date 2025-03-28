@@ -25,52 +25,52 @@ npx ts-node src/index.ts <command> [options]
 
 - **list-folders**: Display all mail folders
   ```
-  npx ts-node src/index.ts list-folders --user your-email@example.com
+  npx ts-node src/index.ts list-folders --user andrew@sirulnik-law.com
   ```
 
 - **list-child-folders**: View subfolders within a specific folder
   ```
-  npx ts-node src/index.ts list-child-folders "/Inbox" --user your-email@example.com
+  npx ts-node src/index.ts list-child-folders "/Inbox" --user andrew@sirulnik-law.com
   ```
 
 - **list-emails**: List messages in a folder with search and date filtering options
   ```
-  npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com [--limit 10] [--search "keyword"] [--fields subject,body] [--before 2023-12-31] [--after 2023-01-01] [--previous 7 --unit days]
+  npx ts-node src/index.ts list-emails "/Inbox" --user andrew@sirulnik-law.com [--limit 10] [--search "keyword"] [--fields subject,body] [--before 2023-12-31] [--after 2023-01-01] [--previous 7 --unit days] [--include-bodies] [--hide-quoted]
   ```
 
 - **read-email**: Retrieve a specific email message
   ```
-  npx ts-node src/index.ts read-email <message-id> --user your-email@example.com
+  npx ts-node src/index.ts read-email <message-id> --user andrew@sirulnik-law.com [--hide-quoted]
   ```
 
 - **move-email**: Move an email to another folder
   ```
-  npx ts-node src/index.ts move-email <message-id> "/Archive" --user your-email@example.com
+  npx ts-node src/index.ts move-email <message-id> "/Archive" --user andrew@sirulnik-law.com
   ```
 
 - **copy-email**: Copy an email to another folder
   ```
-  npx ts-node src/index.ts copy-email <message-id> "/Important Emails" --user your-email@example.com
+  npx ts-node src/index.ts copy-email <message-id> "/Important Emails" --user andrew@sirulnik-law.com
   ```
 
 - **create-draft**: Create a new email
   ```
-  npx ts-node src/index.ts create-draft --to recipient@example.com --subject "Hello" --message "Email content" --user your-email@example.com
+  npx ts-node src/index.ts create-draft --to recipient@example.com --subject "Hello" --message "Email content" --user andrew@sirulnik-law.com
   ```
 
 - **create-folder**: Create a new mail folder
   ```
-  npx ts-node src/index.ts create-folder "New Folder" --user your-email@example.com [--parent "/Clients"]
+  npx ts-node src/index.ts create-folder "New Folder" --user andrew@sirulnik-law.com [--parent "/Clients"]
   ```
 
 - **rename-folder**: Rename an existing folder
   ```
-  npx ts-node src/index.ts rename-folder "/Clients/Old Name" "New Name" --user your-email@example.com
+  npx ts-node src/index.ts rename-folder "/Clients/Old Name" "New Name" --user andrew@sirulnik-law.com
   ```
 
 - **move-folder**: Move a folder to another parent folder
   ```
-  npx ts-node src/index.ts move-folder "/Folder" "/New Parent" --user your-email@example.com
+  npx ts-node src/index.ts move-folder "/Folder" "/New Parent" --user andrew@sirulnik-law.com
   ```
 
 ## Authentication
@@ -103,6 +103,11 @@ This tool supports both folder IDs and plain-text folder paths:
 
 When listing emails, you can use powerful search and date filtering capabilities:
 
+### Content Display Options
+
+- **--include-bodies**: Include full message bodies in the results instead of just previews
+- **--hide-quoted**: Filter out quoted/forwarded messages from email bodies
+
 ### Full-Text Search Options
 
 - **--search "QUERY"**: Search for emails containing the specified text
@@ -121,13 +126,13 @@ These options can be used individually or combined for powerful, targeted querie
 
 ```
 # Search for emails containing "project update" in the subject or body from the last 30 days
-npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com --search "project update" --fields subject,body --previous 30 --unit days
+npx ts-node src/index.ts list-emails "/Inbox" --user andrew@sirulnik-law.com --search "project update" --fields subject,body --previous 30 --unit days --include-bodies --hide-quoted
 
-# Search for emails from a specific sender in Q1 2023
-npx ts-node src/index.ts list-emails "/Archive" --user your-email@example.com --search "john.doe@example.com" --fields from --after 2023-01-01 --before 2023-03-31
+# Search for emails from a specific sender in Q1 2023 with full message bodies
+npx ts-node src/index.ts list-emails "/Archive" --user andrew@sirulnik-law.com --search "john.doe@example.com" --fields from --after 2023-01-01 --before 2023-03-31 --include-bodies
 
 # Search for all mentions of "contract" in any field during the previous year
-npx ts-node src/index.ts list-emails "/Clients" --user your-email@example.com --search "contract" --previous 1 --unit years
+npx ts-node src/index.ts list-emails "/Clients" --user andrew@sirulnik-law.com --search "contract" --previous 1 --unit years
 ```
 
 The search is performed server-side using Microsoft Graph API's search capabilities, which provides fast and efficient results even for large mailboxes.
@@ -136,22 +141,27 @@ The search is performed server-side using Microsoft Graph API's search capabilit
 
 List all folders in your mailbox:
 ```
-npx ts-node src/index.ts list-folders --user your-email@example.com
+npx ts-node src/index.ts list-folders --user andrew@sirulnik-law.com
 ```
 
 Search for emails containing "invoice" in the subject from the last week:
 ```
-npx ts-node src/index.ts list-emails "/Inbox" --user your-email@example.com --search "invoice" --fields subject --previous 7 --unit days
+npx ts-node src/index.ts list-emails "/Inbox" --user andrew@sirulnik-law.com --search "invoice" --fields subject --previous 7 --unit days
 ```
 
 Move an email to a specific folder:
 ```
-npx ts-node src/index.ts move-email AAMkAGFmOThiYzZj-GFmOThiYzZj-wEKAAAA "/Archive/2023" --user your-email@example.com
+npx ts-node src/index.ts move-email AAMkAGFmOThiYzZj-GFmOThiYzZj-wEKAAAA "/Archive/2023" --user andrew@sirulnik-law.com
 ```
 
 Create a new folder inside another folder:
 ```
-npx ts-node src/index.ts create-folder "Project XYZ" --parent "/Clients" --user your-email@example.com
+npx ts-node src/index.ts create-folder "Project XYZ" --parent "/Clients" --user andrew@sirulnik-law.com
+```
+
+Read an email while hiding quoted content:
+```
+npx ts-node src/index.ts read-email AAMkAGFmOThiYzZj-GFmOThiYzZj-wEKAAAA --user andrew@sirulnik-law.com --hide-quoted
 ```
 
 ## License

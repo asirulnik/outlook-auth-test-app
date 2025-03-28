@@ -198,6 +198,8 @@ program
   .option('--unit <unit>', 'Time unit for --previous (days, weeks, months, years)', 'days')
   .option('--search <query>', 'Search for emails containing the specified text')
   .option('--fields <fields>', 'Comma-separated list of fields to search (subject,body,from,recipients,all)', 'all')
+  .option('--include-bodies', 'Include full message bodies in results')
+  .option('--hide-quoted', 'Hide quoted content in message bodies')
   .action(async (folderIdOrPath, options) => {
     try {
       const mailService = new MailService();
@@ -209,7 +211,10 @@ program
       }
       
       // Process search and date filters
-      const searchOptions: EmailSearchOptions = {};
+      const searchOptions: EmailSearchOptions = {
+        includeBodies: options.includeBodies === true,
+        hideQuotedContent: options.hideQuoted === true
+      };
       
       if (options.before) {
         searchOptions.beforeDate = new Date(options.before);
@@ -301,10 +306,11 @@ program
   .command('read-email <emailId>')
   .description('Read a specific email with all details')
   .requiredOption('-u, --user <email>', 'Email address of the user')
+  .option('--hide-quoted', 'Hide quoted content in message body')
   .action(async (emailId, options) => {
     try {
       const mailService = new MailService();
-      const email = await mailService.getEmail(emailId, options.user);
+      const email = await mailService.getEmail(emailId, options.user, options.hideQuoted === true);
       
       printEmailDetails(email);
     } catch (error) {
